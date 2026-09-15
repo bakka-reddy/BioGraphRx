@@ -1,5 +1,9 @@
 from fastapi import FastAPI
-import requests
+from pydantic import BaseModel
+
+from backend.chatbot.ollama import generate_response
+from backend.chatbot.prompts import SYSTEM_PROMPT
+
 
 app = FastAPI(
     title="BioGraphRx",
@@ -7,8 +11,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "qwen3:4b"
+
+class ChatRequest(BaseModel):
+    message: str
 
 
 @app.get("/")
@@ -25,30 +30,32 @@ def health():
     }
 
 
-@app.get("/test-ollama")
-def test_ollama():
+@app.post("/chat")
+def chat(request: ChatRequest):
 
-    payload = {
-        "model": MODEL,
-        "prompt": "Explain what a drug-drug interaction is in simple terms.",
-        "stream": False
-    }
+    system_prompt = """
+...
+"""
 
-    response = requests.post(
-        OLLAMA_URL,
-        json=payload
-    )
+    prompt = f"""
+{system_prompt}
 
-    if response.status_code != 200:
+User:
+{request.message}
+
+Assistant:
+"""
+
+    try:
+        answer = generate_response(prompt)
+
         return {
-            "error": "Ollama request failed",
-            "status_code": response.status_code,
-            "details": response.text
+            "model": "qwen3:4b",
+            "message": answer
         }
 
-    result = response.json()
+    except Exception as e:
 
-    return {
-        "model": MODEL,
-        "response": result["response"]
-    }
+        return {
+            "error": str(e)
+        }
